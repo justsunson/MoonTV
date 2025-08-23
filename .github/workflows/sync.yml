@@ -2,7 +2,7 @@ name: Upstream Sync
 
 on:
   schedule:
-    - cron: '0 0 * * 6' # 每周六 UTC 17:00 = 北京时间周六 00:00 运行
+    - cron: '0 * * * *' # 每小时运行一次
   workflow_dispatch:
 
 permissions:
@@ -43,4 +43,5 @@ jobs:
           repository: ${{ github.repository }}
           retain_days: 0
           keep_minimum_runs: 2
+
 
