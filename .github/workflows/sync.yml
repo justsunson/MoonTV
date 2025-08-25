@@ -19,11 +19,6 @@ jobs:
       UPSTREAM_REPO: senshinya/MoonTV
       UPSTREAM_BRANCH: main
       TARGET_BRANCH: main
-      
-    strategy:
-      retry:
-        max-attempts: 3  # 失败时最多重试3次
-        delay: 60        # 重试间隔60秒
 
     steps:
       - name: Check environment information
@@ -47,28 +42,32 @@ jobs:
           echo "Checking upstream repository accessibility..."
           curl -sSL "https://github.com/$UPSTREAM_REPO" | head -n 5
 
-      - name: Sync upstream changes
+      - name: Sync upstream changes with retry
         id: sync
-        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.1
+        uses: softprops/action-retry@v1
         with:
-          upstream_sync_repo: ${{ env.UPSTREAM_REPO }}
-          upstream_sync_branch: ${{ env.UPSTREAM_BRANCH }}
-          target_sync_branch: ${{ env.TARGET_BRANCH }}
-          target_repo_token: ${{ secrets.PATTOKEN }}
-          git_pull_args: --rebase  # 使用rebase方式同步，减少合并提交
-          git_push_args: --force-with-lease  # 安全的强制推送
-          verbose: true  # 输出详细日志
+          max_attempts: 3  # 最多重试3次
+          interval_seconds: 60  # 重试间隔60秒
+          command: |
+            # 使用 Fork-Sync 工具执行同步
+            npx fork-sync-with-upstream-action \
+              --upstream-repo "$UPSTREAM_REPO" \
+              --upstream-branch "$UPSTREAM_BRANCH" \
+              --target-branch "$TARGET_BRANCH" \
+              --token "${{ secrets.PATTOKEN }}" \
+              --git-pull-args "--rebase" \
+              --git-push-args "--force-with-lease" \
+              --verbose
 
       - name: Display sync result
         run: |
-          echo "Sync status: ${{ steps.sync.outputs.sync_status }}"
-          echo "Sync output: ${{ steps.sync.outputs.sync_output }}"
+          echo "Sync status: ${{ steps.sync.outputs.status }}"
+          echo "Sync output: ${{ steps.sync.outputs.stdout }}"
           
       - name: Handle sync failure
-        if: steps.sync.outputs.sync_status == 'failed'
+        if: failure()
         run: |
-          echo "[ERROR] Sync failed with the following output:"
-          echo "${{ steps.sync.outputs.sync_output }}"
+          echo "[ERROR] Sync failed after 3 attempts"
           exit 1
 
       - name: Delete old workflow runs
@@ -79,5 +78,7 @@ jobs:
           repository: ${{ github.repository }}
           retain_days: 1  # 保留1天的运行记录
           keep_minimum_runs: 2  # 至少保留2条记录
+
+
 
 
